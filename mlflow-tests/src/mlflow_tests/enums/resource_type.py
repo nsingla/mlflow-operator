@@ -13,7 +13,8 @@ class ResourceType(Enum):
     # Core MLflow resources
     EXPERIMENTS = "experiments"
     REGISTERED_MODELS = "registeredmodels"
-    RUNS = "jobs"
+    JOBS = "jobs"
+    DATASETS = "datasets"
 
     # MLflow Gateway resources (for model serving and inference)
     GATEWAY_SECRETS = "gatewaysecrets"
