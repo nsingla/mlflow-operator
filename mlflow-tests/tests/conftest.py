@@ -2,6 +2,9 @@
 
 import logging
 import os
+import tempfile
+from pathlib import Path
+
 import pytest
 import random
 
@@ -10,7 +13,24 @@ from mlflow_tests.manager.namespace import K8Manager
 from mlflow_tests.manager.user import K8UserManager
 from mlflow_tests.utils.client import ClientManager
 from .constants.config import Config
-from .shared import UserInfo
+
+from mlflow.store.tracking.dbmodels.models import (
+    SqlExperiment,
+    SqlExperimentTag,
+    SqlGatewayEndpoint,
+    SqlGatewayEndpointBinding,
+    SqlGatewayEndpointModelMapping,
+    SqlGatewayEndpointTag,
+    SqlGatewayModelDefinition,
+    SqlGatewaySecret,
+    SqlOnlineScoringConfig,
+    SqlScorer,
+    SqlScorerVersion,
+)
+from mlflow.store.tracking.sqlalchemy_store import SqlAlchemyStore
+from mlflow.store.tracking.sqlalchemy_workspace_store import WorkspaceAwareSqlAlchemyStore
+from mlflow.utils.workspace_context import WorkspaceContext
+from mlflow.utils.workspace_utils import DEFAULT_WORKSPACE_NAME
 
 logger = logging.getLogger(__name__)
 random_gen = random.Random()
@@ -28,7 +48,6 @@ def setup_clients():
 
     # Disable SSL verification for testing environments
     # WARNING: This is insecure and should only be used in development/testing
-    import os
     import urllib3
     logger.warning("Disabling SSL verification for testing environment - THIS IS INSECURE")
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -75,6 +94,58 @@ def setup_clients():
     logger.info("Test session setup completed successfully")
     logger.info("=" * 80)
     return admin_client, k8_manager, user_manager, workspaces
+
+
+
+@pytest.fixture(autouse=True)
+def set_kek_passphrase(monkeypatch):
+    """Set the KEK passphrase for gateway encryption tests."""
+    monkeypatch.setenv("MLFLOW_CRYPTO_KEK_PASSPHRASE", "test-passphrase-for-gateway-tests")
+
+def _cleanup_database(store: SqlAlchemyStore):
+    """Clean up gateway-specific tables after each test."""
+    with store.ManagedSessionMaker() as session:
+        # Delete all rows in gateway tables in dependency order
+        for model in (
+                SqlGatewayEndpointTag,
+                SqlGatewayEndpointBinding,
+                SqlGatewayEndpointModelMapping,
+                SqlGatewayEndpoint,
+                SqlGatewayModelDefinition,
+                SqlGatewaySecret,
+                SqlOnlineScoringConfig,
+                SqlScorerVersion,
+                SqlScorer,
+                SqlExperimentTag,
+                SqlExperiment,
+        ):
+            session.query(model).delete()
+
+        # Ensure the default experiment exists in the default workspace (ID 0).
+        with WorkspaceContext(DEFAULT_WORKSPACE_NAME):
+            store._create_default_experiment(session)
+
+@pytest.fixture(autouse=True)
+def store_cleanup():
+    """Clean up database tables after each test.
+
+    Connects to the backend store database and cleans up gateway and experiment
+    tables after each test. Skips cleanup if the database is not accessible
+    (e.g., SQLite inside a pod).
+    """
+    if not Config.BACKEND_STORE_URI:
+        return
+    if "postgresql" in Config.BACKEND_STORE_URI:
+        try:
+            artifact_dir = Path(tempfile.mkdtemp()) / "artifacts"
+            artifact_dir.mkdir(parents=True, exist_ok=True)
+            s = WorkspaceAwareSqlAlchemyStore(Config.BACKEND_STORE_URI, artifact_dir.as_uri())
+            _cleanup_database(s)
+        except Exception as e:
+            logger.warning(f"Database cleanup skipped - could not connect to backend store: {e}")
+    else:
+        logger.info(f"Database cleanup skipped - backend store is not postgres")
+    yield
 
 
 @pytest.fixture(autouse=True, scope="function")

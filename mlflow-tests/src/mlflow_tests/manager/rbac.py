@@ -221,13 +221,14 @@ class K8RoleManager:
                         logger.info(f"RBAC permissions verified for {service_account_name} - can {verb} {resource} (API group: {api_group})")
                         return
                     else:
-                        reason = result.status.reason or "No reason provided"
-                        logger.debug(f"RBAC denied for API group '{api_group}' (attempt {attempt + 1}/{max_retries}): {reason}")
+                        if result.status.reason:
+                            logger.debug(f"RBAC denied for API group '{api_group}' (attempt {attempt + 1}/{max_retries}): {reason}")
+                        else:
+                            logger.debug(f"RBAC denied for API group '{api_group}' (attempt {attempt + 1}/{max_retries}): No reason provided")
                         if attempt < max_retries - 1:
                             import time
                             time.sleep(retry_delay)
                             retry_delay *= 1.2  # Smaller backoff multiplier
-                        break  # Try next API group
                 except Exception as e:
                     logger.debug(f"RBAC verification attempt {attempt + 1} failed for API group '{api_group}': {e}")
                     if attempt < max_retries - 1:
@@ -240,9 +241,4 @@ class K8RoleManager:
         # If we get here, none of the API groups worked - log detailed error and continue
         logger.warning(f"RBAC permissions could not be verified for {service_account_name} to {verb} {resource}")
         logger.warning(f"Tried API groups: {api_groups_to_try}")
-        logger.warning(f"This may indicate that MLflow CRDs are not installed or use different API groups")
-        logger.warning(f"Proceeding without verification - test may fail if permissions are not actually available")
-
-        # Don't raise an exception - just warn and continue
-        # This allows tests to run even if verification fails
-        # If permissions are actually wrong, the MLflow operation will fail later
+        raise RuntimeError(f"RBAC permissions could not be verified for {service_account_name} to {verb} {resource}")

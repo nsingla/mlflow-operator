@@ -151,6 +151,27 @@ jobs:
           echo "🔍 Verifying MLflow API readiness..."
           kubectl port-forward service/mlflow 8080:8443 -n ${{ steps.deploy-mlflow.outputs.namespace }} &
 
+      - name: Setup PostgreSQL port forward
+        id: setup-postgres
+        if: ${{ (inputs.backend_store || matrix.backend_store) == 'postgres' }}
+        run: |
+          echo "🐘 Setting up PostgreSQL port forward for database access..."
+
+          # Wait for PostgreSQL to be ready
+          echo "⏳ Waiting for PostgreSQL to be fully ready..."
+          kubectl wait --for=condition=ready pod -l app=postgres --timeout=300s -n "${{ steps.deploy-mlflow.outputs.namespace }}"
+
+          # Forward PostgreSQL service port to localhost:5432
+          echo "🔍 Setting up PostgreSQL port forward..."
+          kubectl port-forward service/postgres-service 5432:5432 -n ${{ steps.deploy-mlflow.outputs.namespace }} &
+
+          # Give port-forward a moment to establish
+          sleep 5
+          echo "✅ PostgreSQL accessible at localhost:5432"
+
+          # Set backend store URI for tests
+          echo "MLFLOW_BACKEND_STORE_URI=postgresql://postgres:mysecretpassword@localhost:5432/mydatabase" >> "$GITHUB_ENV"
+
       - name: Setup MinIO port forward
         id: setup-minio
         if: ${{ (inputs.artifact_storage == 's3' || matrix.artifact_storage == 's3') && (!inputs.serve_artifacts || !matrix.serve_artifacts) }}

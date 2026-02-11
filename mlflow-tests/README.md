@@ -107,6 +107,7 @@ The framework supports configuration via environment variables:
 | `DISABLE_TLS` | Disable TLS verification | `true` | Both |
 | `artifact_storage` | Artifact storage type (`s3` or `file`) | `file` | Both |
 | `serve_artifacts` | Whether MLflow serves artifacts | `true` | Both |
+| `MLFLOW_BACKEND_STORE_URI` | Database connection URI for store cleanup | `sqlite:////mlflow/mlflow.db` | Both |
 | `MLFLOW_S3_ENDPOINT_URL` | S3 endpoint URL | Optional | Both |
 | `AWS_ACCESS_KEY_ID` | AWS access key for S3 | Optional | Both |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 | Optional | Both |

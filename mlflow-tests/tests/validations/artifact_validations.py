@@ -203,8 +203,9 @@ def validate_run_created(test_context: TestContext) -> None:
     # Validate no error occurred
     if test_context.last_error is not None:
         error_response: ErrorResponse = test_context.last_error
-        assert False, \
+        raise AssertionError(
             f"Run creation failed: {error_response.error.code} - {error_response.error.message}"
+        )
     logger.debug("No errors detected during run creation")
 
     # Validate run ID is set
@@ -230,8 +231,9 @@ def validate_run_ended(test_context: TestContext) -> None:
     # Validate no error occurred
     if test_context.last_error is not None:
         error_response: ErrorResponse = test_context.last_error
-        assert False, \
+        raise AssertionError(
             f"Run ending failed: {error_response.error.code} - {error_response.error.message}"
+        )
     logger.debug("No errors detected during run ending")
 
     logger.info("Successfully validated run ending")
