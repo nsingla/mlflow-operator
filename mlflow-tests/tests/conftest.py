@@ -125,8 +125,8 @@ def _cleanup_database(store: SqlAlchemyStore):
         with WorkspaceContext(DEFAULT_WORKSPACE_NAME):
             store._create_default_experiment(session)
 
-@pytest.fixture(autouse=True)
-def store_cleanup():
+@pytest.fixture(autouse=True, scope="function")
+def store_cleanup(setup_clients):
     """Clean up database tables after each test.
 
     Connects to the backend store database and cleans up gateway and experiment
@@ -212,8 +212,8 @@ def cleanup_active_runs():
     _disable_autologging()
 
 
-@pytest.fixture(autouse=True, scope="session")
-def create_experiments_and_runs(setup_clients):
+@pytest.fixture(autouse=True, scope="function")
+def create_experiments_and_runs(store_cleanup):
     """Create session-scoped test resources for all workspaces.
 
     This fixture runs once per test session and creates baseline resources
